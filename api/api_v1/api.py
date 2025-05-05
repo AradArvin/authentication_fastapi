@@ -1,5 +1,6 @@
 from fastapi import Depends, APIRouter, HTTPException, Request, status, Response
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from starlette.responses import JSONResponse
 from schema.user import UserCreate, UserResponse, UserTokenResponse, UserLogOut
 from DAL.user_table_queries import create_user_query, get_user_query, user_exists
 from service.password_service import PasswordChecker
@@ -67,10 +68,10 @@ async def get_tokens(request: Request, response: Response):
     return {'message': 'Done'}
 
 
-@authentication_router.post('/api/v1/logout', summary='User logout', status_code=status.HTTP_200_OK)
+@authentication_router.post('/api/v1/logout', summary='User logout')
 async def logout(user_data: UserLogOut):
     logout_response = await request_authorization('logout', user_id=user_data.user_id)
     if logout_response.message == 'logged_out':
-        return {'message': logout_response.message}
+        return JSONResponse(content={'message': 'logged out'}, status_code=status.HTTP_200_OK)
     else:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='could not log out')
+        return JSONResponse(content={'message': 'user is not logged in'}, status_code=status.HTTP_400_BAD_REQUEST)

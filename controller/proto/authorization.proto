@@ -1,0 +1,45 @@
+syntax = 'proto3';
+
+package authorization;
+
+
+service Authorization {
+  rpc GetTokens (SendSUB) returns (ReturnTokens) {}
+
+  rpc GetAccess (SendToken) returns (ReturnAccess) {}
+
+  rpc GetRefresh (SendSUB) returns (ReturnRefresh) {}
+
+  rpc GetUserId (SendToken) returns (ReturnUserId) {}
+
+  rpc LogOut (SendSUB) returns (ReturnLogoutState) {}
+}
+
+message SendSUB {
+  string user_id = 1;
+}
+
+message SendToken {
+  string token = 1;
+}
+
+message ReturnTokens {
+  string access = 1;
+  string refresh = 2;
+}
+
+message ReturnAccess {
+  string access = 1;
+}
+
+message ReturnRefresh {
+  string refresh = 1;
+}
+
+message ReturnUserId {
+  string user_id = 1;
+}
+
+message ReturnLogoutState {
+  string message = 1;
+}

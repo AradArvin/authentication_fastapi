@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, ValidationError
 from datetime import datetime
 
 
-class UserCreate(BaseModel):
+class User(BaseModel):
     username: str
     password: str
     email: EmailStr

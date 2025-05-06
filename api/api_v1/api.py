@@ -1,7 +1,7 @@
 from fastapi import Depends, APIRouter, HTTPException, Request, status, Response
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordRequestForm
 from starlette.responses import JSONResponse
-from schema.user import UserCreate, UserResponse, UserTokenResponse, UserLogOut
+from schema.user import User, UserResponse, UserTokenResponse, UserLogOut
 from DAL.user_table_queries import create_user_query, get_user_query, user_exists
 from service.password_service import PasswordChecker
 from controller.grpc_client import request_authorization
@@ -9,11 +9,9 @@ from controller.grpc_client import request_authorization
 
 authentication_router = APIRouter()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='authentication/api/v1/login')
-
 
 @authentication_router.post('/api/v1/signup', summary='Sign up user to the service', response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def sign_up(form_data: UserCreate, pass_service: PasswordChecker = Depends()):
+async def sign_up(form_data: User, pass_service: PasswordChecker = Depends()):
     user_already_created = get_user_query(username=form_data.username)
     if user_already_created:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Use already exists')
@@ -31,7 +29,7 @@ async def sign_up(form_data: UserCreate, pass_service: PasswordChecker = Depends
     return created_user.__data__
 
 
-@authentication_router.post('/api/v1/login', summary='Login user to service', response_model=UserTokenResponse, status_code=status.HTTP_200_OK)
+@authentication_router.post('/api/v1/login', summary='Login user to service', status_code=status.HTTP_200_OK)
 async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends() , pass_service: PasswordChecker = Depends()):
     get_user_data = get_user_query(username=form_data.username)
 
@@ -52,7 +50,7 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
 
 
 @authentication_router.post('/api/v1/access', summary='Give refresh token to get new access token', response_model=UserTokenResponse, status_code=status.HTTP_200_OK)
-async def get_tokens(request: Request, response: Response):
+async def get_access(request: Request, response: Response):
     token = request.headers['refresh_token']
 
     user_id_response = await request_authorization('user_id', token=token)
@@ -75,3 +73,32 @@ async def logout(user_data: UserLogOut):
         return JSONResponse(content={'message': 'logged out'}, status_code=status.HTTP_200_OK)
     else:
         return JSONResponse(content={'message': 'user is not logged in'}, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+async def get_current_user(request: Request):
+    token = request.headers['Authorization'].split(' ')[1]
+    user_id_response = await request_authorization('user_id', token=token)
+    get_user_data = get_user_query(user_id=user_id_response.user_id)
+    return User(username=get_user_data.username, email=get_user_data.email, full_name=get_user_data.full_name, role=get_user_data.role, password="")
+
+
+@authentication_router.get('/api/v1/current', summary='get current active user', response_model=User)
+async def get_current_user(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+def role_required(required_role: str):
+    def role_checker(current_user: User = Depends(get_current_user)):
+        if current_user.role != required_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f'Insufficient privileges. Required {required_role} role'
+            )
+        return current_user
+    return role_checker
+
+
+@authentication_router.get('/api/v1/admin', summary='Admin user')
+async def read_admin_data(current_user: User = Depends(role_required('admin'))):
+    content = {'message': 'Welcome Admin'}
+    return JSONResponse(content=content, status_code=status.HTTP_200_OK)
